@@ -12,7 +12,7 @@ Mostly copy-paste from torchvision references.
 """
 import io
 import os
-import time,random
+import time, random
 import numpy as np
 from collections import defaultdict, deque
 import datetime
@@ -28,7 +28,7 @@ import torch.nn.functional as nnf
 from einops import rearrange, repeat
 import pickle
 import gzip
-
+import json
 try:
     from torchtext.vocab import build_vocab_from_iterator
 except:
@@ -40,8 +40,13 @@ import matplotlib.pyplot as plt  # For graphics
 import seaborn as sns
 from torchvision.utils import save_image, make_grid
 
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import LabelEncoder
+
 # global definition
 from definition import *
+
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -67,7 +72,7 @@ class SmoothedValue(object):
         """
         if not is_dist_avail_and_initialized():
             return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
+        t = torch.tensor([self.count, self.total], dtype=torch.float64, device="cuda")
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
@@ -102,7 +107,8 @@ class SmoothedValue(object):
             avg=self.avg,
             global_avg=self.global_avg,
             max=self.max,
-            value=self.value)
+            value=self.value,
+        )
 
 
 class MetricLogger(object):
@@ -122,15 +128,14 @@ class MetricLogger(object):
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            type(self).__name__, attr))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(type(self).__name__, attr)
+        )
 
     def __str__(self):
         loss_str = []
         for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {}".format(name, str(meter))
-            )
+            loss_str.append("{}: {}".format(name, str(meter)))
         return self.delimiter.join(loss_str)
 
     def synchronize_between_processes(self):
@@ -143,22 +148,22 @@ class MetricLogger(object):
     def log_every(self, iterable, print_freq, header=None):
         i = 0
         if not header:
-            header = ''
+            header = ""
         start_time = time.time()
         end = time.time()
-        iter_time = SmoothedValue(fmt='{avg:.4f}')
-        data_time = SmoothedValue(fmt='{avg:.4f}')
-        space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
+        iter_time = SmoothedValue(fmt="{avg:.4f}")
+        data_time = SmoothedValue(fmt="{avg:.4f}")
+        space_fmt = ":" + str(len(str(len(iterable)))) + "d"
         log_msg = [
             header,
-            '[{0' + space_fmt + '}/{1}]',
-            'eta: {eta}',
-            '{meters}',
-            'time: {time}',
-            'data: {data}'
+            "[{0" + space_fmt + "}/{1}]",
+            "eta: {eta}",
+            "{meters}",
+            "time: {time}",
+            "data: {data}",
         ]
         if torch.cuda.is_available():
-            log_msg.append('max mem: {memory:.0f}')
+            log_msg.append("max mem: {memory:.0f}")
         log_msg = self.delimiter.join(log_msg)
         MB = 1024.0 * 1024.0
         for obj in iterable:
@@ -169,26 +174,43 @@ class MetricLogger(object):
                 eta_seconds = iter_time.global_avg * (len(iterable) - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 if torch.cuda.is_available():
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time),
-                        memory=torch.cuda.max_memory_allocated() / MB))
+                    print(
+                        log_msg.format(
+                            i,
+                            len(iterable),
+                            eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time),
+                            data=str(data_time),
+                            memory=torch.cuda.max_memory_allocated() / MB,
+                        )
+                    )
                 else:
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
+                    print(
+                        log_msg.format(
+                            i,
+                            len(iterable),
+                            eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time),
+                            data=str(data_time),
+                        )
+                    )
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.4f} s / it)'.format(
-            header, total_time_str, total_time / len(iterable)))
+        print(
+            "{} Total time: {} ({:.4f} s / it)".format(
+                header, total_time_str, total_time / len(iterable)
+            )
+        )
+
 
 def count_parameters_in_MB(model):
     # sum(p.numel() for p in model.parameters() if p.requires_grad)
-  return np.sum(np.prod(v.size()) for name, v in model.named_parameters())/1e6
+    return np.sum(np.prod(v.size()) for name, v in model.named_parameters()) / 1e6
+
 
 def _load_checkpoint_for_ema(model_ema, checkpoint):
     """
@@ -205,10 +227,11 @@ def setup_for_distributed(is_master):
     This function disables printing when not in master process
     """
     import builtins as __builtin__
+
     builtin_print = __builtin__.print
 
     def print(*args, **kwargs):
-        force = kwargs.pop('force', False)
+        force = kwargs.pop("force", False)
         if is_master or force:
             builtin_print(*args, **kwargs)
 
@@ -245,69 +268,89 @@ def save_on_master(*args, **kwargs):
 
 
 def init_distributed_mode(args):
-    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-    elif 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
+        args.world_size = int(os.environ["WORLD_SIZE"])
+        args.gpu = int(os.environ["LOCAL_RANK"])
+    elif "SLURM_PROCID" in os.environ:
+        args.rank = int(os.environ["SLURM_PROCID"])
         args.gpu = args.rank % torch.cuda.device_count()
     else:
-        print('Not using distributed mode')
+        print("Not using distributed mode")
         args.distributed = False
         return
 
     args.distributed = True
 
     torch.cuda.set_device(args.gpu)
-    args.dist_backend = 'nccl'
-    print('| distributed init (rank {}): {}'.format(
-        args.rank, args.dist_url), flush=True)
-    torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                         world_size=args.world_size, rank=args.rank)
+    args.dist_backend = "nccl"
+    print(
+        "| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True
+    )
+    torch.distributed.init_process_group(
+        backend=args.dist_backend,
+        init_method=args.dist_url,
+        world_size=args.world_size,
+        rank=args.rank,
+    )
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
 
+
 def sampler_func(clip, sn, random_choice=True):
     if random_choice:
-        f = lambda n: [(lambda n, arr: n if arr == [] else np.random.choice(arr))(n * i / sn,
-                                                                                range(int(n * i / sn),
-                                                                                        max(int(n * i / sn) + 1,
-                                                                                            int(n * (
-                                                                                                    i + 1) / sn))))
-                        for i in range(sn)]
+        f = lambda n: [
+            (lambda n, arr: n if arr == [] else np.random.choice(arr))(
+                n * i / sn,
+                range(int(n * i / sn), max(int(n * i / sn) + 1, int(n * (i + 1) / sn))),
+            )
+            for i in range(sn)
+        ]
     else:
-        f = lambda n: [(lambda n, arr: n if arr == [] else int(np.mean(arr)))(n * i / sn, range(int(n * i / sn),
-                                                                                                max(int(
-                                                                                                    n * i / sn) + 1,
-                                                                                                    int(n * (
-                                                                                                            i + 1) / sn))))
-                        for i in range(sn)]
+        f = lambda n: [
+            (lambda n, arr: n if arr == [] else int(np.mean(arr)))(
+                n * i / sn,
+                range(int(n * i / sn), max(int(n * i / sn) + 1, int(n * (i + 1) / sn))),
+            )
+            for i in range(sn)
+        ]
     return f(clip)
+
 
 def cosine_scheduler(base_value, final_value, epochs):
     iters = np.arange(epochs)
-    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+    schedule = final_value + 0.5 * (base_value - final_value) * (
+        1 + np.cos(np.pi * iters / len(iters))
+    )
     return schedule
 
+
 def cosine_scheduler_func(base_value, final_value, iters, epochs):
-    schedule = lambda x: final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * x / epochs))
+    schedule = lambda x: final_value + 0.5 * (base_value - final_value) * (
+        1 + np.cos(np.pi * x / epochs)
+    )
     return schedule(iters)
+
 
 def load_dataset_file(filename):
     with gzip.open(filename, "rb") as f:
         loaded_object = pickle.load(f)
         return loaded_object
 
-def build_vocab(file_path,UNK_IDX,specials_symbols):
-    vocab = build_vocab_from_iterator(yield_tokens(file_path), specials=specials_symbols,min_freq=1)
+
+def build_vocab(file_path, UNK_IDX, specials_symbols):
+    vocab = build_vocab_from_iterator(
+        yield_tokens(file_path), specials=specials_symbols, min_freq=1
+    )
     vocab.set_default_index(UNK_IDX)
     return vocab
 
+
 def yield_tokens(file_path):
-    with io.open(file_path, encoding = 'utf-8') as f:
+    with io.open(file_path, encoding="utf-8") as f:
         for line in f:
             yield line.strip().split()
+
 
 @torch.no_grad()
 def concat_all_gather(tensor):
@@ -315,47 +358,60 @@ def concat_all_gather(tensor):
     Performs all_gather operation on the provided tensors.
     *** Warning ***: torch.distributed.all_gather has no gradient.
     """
-    tensors_gather = [torch.ones_like(tensor)
-        for _ in range(torch.distributed.get_world_size())]
+    tensors_gather = [
+        torch.ones_like(tensor) for _ in range(torch.distributed.get_world_size())
+    ]
     torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
-    
-    output = torch.cat(tensors_gather,dim=0)
+
+    output = torch.cat(tensors_gather, dim=0)
     return output
 
-def gloss_tokens_to_sequences(tokens,tgt_vocab,type = 'tensor'):
-    if type=='list':
+
+def gloss_tokens_to_sequences(tokens, tgt_vocab, type="tensor"):
+    if type == "list":
         sequences = []
         for token in tokens:
             sequence = tgt_vocab.lookup_tokens(token)
-            sequence = ' '.join(sequence)
+            sequence = " ".join(sequence)
             sequences.append(sequence)
         return sequences
     else:
-        tokens = tokens.transpose(0,1)
+        tokens = tokens.transpose(0, 1)
         sequences = []
         for i in range(len(tokens)):
-            token =  tokens[i,:].tolist()
+            token = tokens[i, :].tolist()
             for j1 in range(len(token)):
                 if token[j1] == PAD_IDX:
                     token = token[0:j1]
                     break
-                if j1 == len(token)-1:
+                if j1 == len(token) - 1:
                     token = token[0:j1]
             sequence = tgt_vocab.lookup_tokens(token)
-            sequence = ' '.join(sequence)
+            sequence = " ".join(sequence)
             sequences.append(sequence)
         return sequences
 
-def NoiseInjecting(raw_gloss, noise_rate=0.15, noise_type='omit_last', random_shuffle=False, is_train=True):
+
+def NoiseInjecting(
+    raw_gloss,
+    noise_rate=0.15,
+    noise_type="omit_last",
+    random_shuffle=False,
+    is_train=True,
+):
     new_gloss = []
 
     for ii, gloss in enumerate(raw_gloss):
         text = gloss.split()
 
-        if noise_type == 'omit':
+        if noise_type == "omit":
             # del noise
-            if random.uniform(0, 1) <= 1. and is_train:
-                index = sampler_func(len(text), int(len(text)*(1. - noise_rate)), random_choice=is_train)
+            if random.uniform(0, 1) <= 1.0 and is_train:
+                index = sampler_func(
+                    len(text),
+                    int(len(text) * (1.0 - noise_rate)),
+                    random_choice=is_train,
+                )
                 noise_gloss = []
                 noise_idx = []
                 for i, d in enumerate(text):
@@ -367,9 +423,17 @@ def NoiseInjecting(raw_gloss, noise_rate=0.15, noise_type='omit_last', random_sh
             else:
                 noise_gloss = [d for d in text]
 
-        elif noise_type == 'omit_last' :
+        elif noise_type == "omit_last":
             if random.uniform(0, 1) <= 1.0 and is_train:
-                index = np.arange(0, len(text) - int(np.ceil(len(text)*(np.random.uniform(0,noise_rate,(1,))))), 1, dtype=int)
+                index = np.arange(
+                    0,
+                    len(text)
+                    - int(
+                        np.ceil(len(text) * (np.random.uniform(0, noise_rate, (1,))))
+                    ),
+                    1,
+                    dtype=int,
+                )
                 noise_gloss = []
                 for i, d in enumerate(text):
                     if i in index:
@@ -378,12 +442,13 @@ def NoiseInjecting(raw_gloss, noise_rate=0.15, noise_type='omit_last', random_sh
                         noise_gloss.append(WORD_MASK)
             else:
                 noise_gloss = [d for d in text]
-        
-        if is_train and random_shuffle and random.uniform(0, 1) > 0.5:
-            random.shuffle(noise_gloss) # random shuffle sequence
 
-        new_gloss.append(' '.join(noise_gloss))
+        if is_train and random_shuffle and random.uniform(0, 1) > 0.5:
+            random.shuffle(noise_gloss)  # random shuffle sequence
+
+        new_gloss.append(" ".join(noise_gloss))
     return new_gloss
+
 
 def GlossPadding(input_ids, gt_gloss, attention_mask):
     new_input_ids, new_gt_gloss, new_mask = [], [], []
@@ -398,9 +463,14 @@ def GlossPadding(input_ids, gt_gloss, attention_mask):
         new_input_ids.append(NG)
         new_gt_gloss.append(TG)
         new_mask.append(MASK)
-    return torch.tensor(new_input_ids), torch.tensor(new_gt_gloss), torch.tensor(new_mask)
+    return (
+        torch.tensor(new_input_ids),
+        torch.tensor(new_gt_gloss),
+        torch.tensor(new_mask),
+    )
 
-def ctc_decode(gloss_probabilities,sgn_lengths):
+
+def ctc_decode(gloss_probabilities, sgn_lengths):
     gloss_probabilities = gloss_probabilities.cpu().detach().numpy()
     # tf_gloss_probabilities = np.concatenate(
     #     (gloss_probabilities[:, :, 1:], gloss_probabilities[:, :, 0, None]),
@@ -414,20 +484,20 @@ def ctc_decode(gloss_probabilities,sgn_lengths):
     #     merge_repeated = False
     # )
     ctc_decode, _ = tf.nn.ctc_beam_search_decoder(
-                        inputs=gloss_probabilities,
-                        sequence_length=np.array(sgn_lengths),
-                        beam_width=5,
-                        top_paths=1,
-                        )
+        inputs=gloss_probabilities,
+        sequence_length=np.array(sgn_lengths),
+        beam_width=5,
+        top_paths=1,
+    )
     ctc_decode = ctc_decode[0]
     # Create a decoded gloss list for each sample
     tmp_gloss_sequences = [[] for i in range(gloss_probabilities.shape[1])]
-    for (value_idx, dense_idx) in enumerate(ctc_decode.indices):
+    for value_idx, dense_idx in enumerate(ctc_decode.indices):
         if ctc_decode.values[value_idx].numpy() != SI_IDX:
             tmp_gloss_sequences[dense_idx[0]].append(
                 ctc_decode.values[value_idx].numpy()
             )
-    
+
     decoded_gloss_sequences = []
     for seq_idx in range(0, len(tmp_gloss_sequences)):
         decoded_gloss_sequences.append(
@@ -435,13 +505,17 @@ def ctc_decode(gloss_probabilities,sgn_lengths):
         )
     return decoded_gloss_sequences
 
+
 def data_augmentation(resize=(320, 240), crop_size=224, is_train=True):
     if is_train:
-        left, top = np.random.randint(0, resize[0] - crop_size), np.random.randint(0, resize[1] - crop_size)
+        left, top = np.random.randint(0, resize[0] - crop_size), np.random.randint(
+            0, resize[1] - crop_size
+        )
     else:
         left, top = (resize[0] - crop_size) // 2, (resize[1] - crop_size) // 2
 
     return (left, top, left + crop_size, top + crop_size), resize
+
 
 class TemporalRescale(object):
     def __init__(self, temp_scaling=0.2):
@@ -465,37 +539,55 @@ class TemporalRescale(object):
             index = sorted(random.choices(range(vid_len), k=new_len))
         return clip[index]
 
+
 def visualization(atten_maps):
-    os.makedirs('./demo', exist_ok=True)
+    os.makedirs("./demo", exist_ok=True)
     for ii, att in enumerate(atten_maps):
         i = att.shape[0]
-        idx = [max(1, int((i**0.5))), i//max(1, int((i**0.5))), 1]
+        idx = [max(1, int((i**0.5))), i // max(1, int((i**0.5))), 1]
 
-        fig = plt.figure(figsize=(6*idx[1], 6*idx[0]))
+        fig = plt.figure(figsize=(6 * idx[1], 6 * idx[0]))
         if att.squeeze().dim() == 2:
             ax = fig.add_subplot()
             att = torch.softmax(att, dim=-1)
-            sns.heatmap(att.detach().cpu().numpy(), annot=False, yticklabels=False, xticklabels=False, fmt='g', ax=ax)
-            
-            fig.savefig(os.path.join('./demo', f'Att_score_{ii}.jpg'), dpi=fig.dpi)
+            sns.heatmap(
+                att.detach().cpu().numpy(),
+                annot=False,
+                yticklabels=False,
+                xticklabels=False,
+                fmt="g",
+                ax=ax,
+            )
+
+            fig.savefig(os.path.join("./demo", f"Att_score_{ii}.jpg"), dpi=fig.dpi)
             plt.close()
             continue
-        
+
         for cmp in att:
             ax = fig.add_subplot(*idx)
-            sns.heatmap(cmp.detach().cpu().numpy(), cbar=idx[-1] % idx[-2] == 0, annot=False, yticklabels=False, xticklabels=False, fmt='g', ax=ax)
+            sns.heatmap(
+                cmp.detach().cpu().numpy(),
+                cbar=idx[-1] % idx[-2] == 0,
+                annot=False,
+                yticklabels=False,
+                xticklabels=False,
+                fmt="g",
+                ax=ax,
+            )
             idx[-1] += 1
-        fig.savefig(os.path.join('./demo', f'Att_score_{ii}.jpg'), dpi=fig.dpi)
+        fig.savefig(os.path.join("./demo", f"Att_score_{ii}.jpg"), dpi=fig.dpi)
         plt.close()
+
 
 def gen_label(labels):
     num = len(labels)
-    gt = np.zeros(shape=(num,num))
+    gt = np.zeros(shape=(num, num))
     for i, label in enumerate(labels):
         for k in range(num):
             if labels[k] == label:
-                gt[i,k] = 1
+                gt[i, k] = 1
     return gt
+
 
 class KLLoss(torch.nn.Module):
     """Loss that uses a 'hinge' on the lower bound.
@@ -509,7 +601,7 @@ class KLLoss(torch.nn.Module):
 
     def __init__(self, error_metric=torch.nn.KLDivLoss(size_average=True, reduce=True)):
         super().__init__()
-        print('=========using KL Loss=and has temperature and * bz==========')
+        print("=========using KL Loss=and has temperature and * bz==========")
         self.error_metric = error_metric
 
     def forward(self, prediction, label):
@@ -518,7 +610,8 @@ class KLLoss(torch.nn.Module):
         probs2 = F.softmax(label * 10, 1)
         loss = self.error_metric(probs1, probs2) * batch_size
         return loss
-        
+
+
 def loss_fn_kd(outputs, teacher_outputs, T=1.0, alpha=0.5):
     """
     Compute the knowledge-distillation (KD) loss given outputs, labels.
@@ -526,11 +619,15 @@ def loss_fn_kd(outputs, teacher_outputs, T=1.0, alpha=0.5):
     NOTE: the KL Divergence for PyTorch comparing the softmaxs of teacher
     and student expects the input tensor to be log probabilities! See Issue #2
     """
-    KD_loss = torch.nn.KLDivLoss( reduction='sum')(F.log_softmax(outputs/T, dim=1),
-                             F.softmax(teacher_outputs/T, dim=1)) * (T * T) #+ \
-            #    F.cross_entropy(outputs, F.softmax(teacher_outputs, dim=1)) * (1. - alpha)
+    KD_loss = torch.nn.KLDivLoss(reduction="sum")(
+        F.log_softmax(outputs / T, dim=1), F.softmax(teacher_outputs / T, dim=1)
+    ) * (
+        T * T
+    )  # + \
+    #    F.cross_entropy(outputs, F.softmax(teacher_outputs, dim=1)) * (1. - alpha)
 
     return KD_loss
+
 
 class NativeScaler:
     state_dict_key = "amp_scaler"
@@ -538,11 +635,21 @@ class NativeScaler:
     def __init__(self):
         self._scaler = torch.cuda.amp.GradScaler()
 
-    def __call__(self, loss, optimizer, clip_grad=None, clip_mode='norm', parameters=None, create_graph=False):
+    def __call__(
+        self,
+        loss,
+        optimizer,
+        clip_grad=None,
+        clip_mode="norm",
+        parameters=None,
+        create_graph=False,
+    ):
         self._scaler.scale(loss).backward(create_graph=create_graph)
         if clip_grad is not None:
             assert parameters is not None
-            self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
+            self._scaler.unscale_(
+                optimizer
+            )  # unscale the gradients of optimizer's assigned params in-place
             dispatch_clip_grad(parameters, clip_grad, mode=clip_mode)
         self._scaler.step(optimizer)
         self._scaler.update()
@@ -553,15 +660,22 @@ class NativeScaler:
     def load_state_dict(self, state_dict):
         self._scaler.load_state_dict(state_dict)
 
+
 def InputMask(gloss_input_ids, gloss_attention_mask, noise_rate=0.1, is_train=True):
     mask_matrix = torch.ones_like(gloss_attention_mask)
     for i in range(mask_matrix.size(0)):
         # index = random.sample(range(0, mask_matrix.size(-1)), int(mask_matrix.size(-1)*noise_rate))
-        sample = sampler_func(mask_matrix.size(-1)-2, int((mask_matrix.size(-1)-2)*noise_rate), random_choice=is_train)
-        index = [i+1 for i in sample]
+        sample = sampler_func(
+            mask_matrix.size(-1) - 2,
+            int((mask_matrix.size(-1) - 2) * noise_rate),
+            random_choice=is_train,
+        )
+        index = [i + 1 for i in sample]
         mask_matrix[i, :].scatter_(0, torch.tensor(index, device=mask_matrix.device), 0)
     gloss_attention_mask *= mask_matrix.cuda().type(torch.int)
-    gloss_input_ids = torch.where(mask_matrix==0, torch.ones_like(gloss_input_ids), gloss_input_ids)
+    gloss_input_ids = torch.where(
+        mask_matrix == 0, torch.ones_like(gloss_input_ids), gloss_input_ids
+    )
     # print(gloss_input_ids, gloss_attention_mask)
 
     # gloss_input_ids_filp = gloss_input_ids.flip(0)
@@ -571,15 +685,14 @@ def InputMask(gloss_input_ids, gloss_attention_mask, noise_rate=0.1, is_train=Tr
     #     mask_matrix[i, :].scatter_(0, torch.tensor(index, device=mask_matrix.device), 0)
     # gloss_input_ids = torch.where(mask_matrix==0, gloss_input_ids_filp, gloss_input_ids)
 
-
     return gloss_input_ids, gloss_attention_mask
+
 
 class Dict(dict):
     __setattr__ = dict.__setitem__
     __getattr__ = dict.__getitem__  # dict.k  ==>  dict[k]
     # __getattr__ = dict.get  # dict.k  ==>  dict.get(k)
     # __getattr__ = lambda d, k: d.get(k, '')  # dict.k  ==>  dict.get(k,default)
-
 
 
 def constrast_temp():
@@ -594,8 +707,9 @@ def constrast_temp():
         def forward(self, inputs_embeds):
             # Assuming inputs_embeds is of shape [B, L, C]
             # Calculate the pairwise cosine similarity between embeddings in the L dimension
-            similarity_matrix = torch.nn.functional.cosine_similarity(inputs_embeds.unsqueeze(2),
-                                                                      inputs_embeds.unsqueeze(1), dim=-1)
+            similarity_matrix = torch.nn.functional.cosine_similarity(
+                inputs_embeds.unsqueeze(2), inputs_embeds.unsqueeze(1), dim=-1
+            )
 
             # Create positive and negative masks
             L = inputs_embeds.size(1)
@@ -603,12 +717,20 @@ def constrast_temp():
             negative_mask = ~positive_mask
 
             # Extract positive and negative similarities
-            positive_similarities = similarity_matrix[positive_mask].view(inputs_embeds.size(0), -1)
-            negative_similarities = similarity_matrix[negative_mask].view(inputs_embeds.size(0), -1, L - 1)
+            positive_similarities = similarity_matrix[positive_mask].view(
+                inputs_embeds.size(0), -1
+            )
+            negative_similarities = similarity_matrix[negative_mask].view(
+                inputs_embeds.size(0), -1, L - 1
+            )
 
             # Calculate loss
-            negative_similarities = negative_similarities.max(dim=-1)[0]  # Get hardest negatives
-            loss = F.relu(negative_similarities - positive_similarities + self.margin).mean()
+            negative_similarities = negative_similarities.max(dim=-1)[
+                0
+            ]  # Get hardest negatives
+            loss = F.relu(
+                negative_similarities - positive_similarities + self.margin
+            ).mean()
 
             return loss
 
@@ -616,11 +738,22 @@ def constrast_temp():
     def forward(self, src_input, tgt_input):
         # ... existing code ...
         # Ensure you return inputs_embeds as well
-        return out['logits'], output, inputs_embeds
+        return out["logits"], output, inputs_embeds
 
     # Modify the training loop to include contrastive loss
-    def train_one_epoch(args, model, criterion, contrastive_criterion, data_loader, optimizer, device, epoch, config,
-                        loss_scaler, mixup_fn=None):
+    def train_one_epoch(
+        args,
+        model,
+        criterion,
+        contrastive_criterion,
+        data_loader,
+        optimizer,
+        device,
+        epoch,
+        config,
+        loss_scaler,
+        mixup_fn=None,
+    ):
         # ... existing code ...
         for step, (src_input, tgt_input) in enumerate(data_loader):
             # ... existing code ...
@@ -638,20 +771,29 @@ import random
 
 
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+
 # from rouge import Rouge  # 导入rouge库
+
 
 # 读取文件的函数
 def read_file(filepath):
-    with open(filepath, 'r', encoding='utf-8') as file:
+    with open(filepath, "r", encoding="utf-8") as file:
         lines = file.readlines()
     return [line.strip() for line in lines]
 
+
 # 计算 BLEU 分数的函数
 def calculate_bleu(references, candidate, n):
-    weights = [1.0/n]*n + [0.0]*(4-n)  # 使总权重为 1
-    return sentence_bleu(references, candidate, weights=weights, smoothing_function=SmoothingFunction().method1)
+    weights = [1.0 / n] * n + [0.0] * (4 - n)  # 使总权重为 1
+    return sentence_bleu(
+        references,
+        candidate,
+        weights=weights,
+        smoothing_function=SmoothingFunction().method1,
+    )
 
-def get_results(candidates,references ):
+
+def get_results(candidates, references):
     # 初始化rouge计算器
     rouge_calculator = Rouge()
 
@@ -663,10 +805,12 @@ def get_results(candidates,references ):
         candidate_sentence = candidate
         reference_sentence = references[i]
         for n in range(1, 5):
-            bleu_scores[n] += calculate_bleu([reference_sentence.split()], candidate.split(), n)
+            bleu_scores[n] += calculate_bleu(
+                [reference_sentence.split()], candidate.split(), n
+            )
         # 计算ROUGE
         score = rouge_calculator.get_scores(candidate_sentence, reference_sentence)
-        rouge_l_scores.append(score[0]['rouge-l']['f'])
+        rouge_l_scores.append(score[0]["rouge-l"]["f"])
 
     # 求平均
     for n in bleu_scores:
@@ -681,3 +825,154 @@ def get_results(candidates,references ):
     answer = f"&{average_rouge_l * 100:.2f} &{bleu_scores[1] * 100:.2f} &{bleu_scores[2] * 100:.2f}&{bleu_scores[3] * 100:.2f}& {bleu_scores[4] * 100:.2f}"
 
     print(answer)
+
+
+# def tsne_viz(batch_data, )
+def load_recognition_label(path, phase):
+    if path is None:
+        return None
+    label_dict = defaultdict(list)
+    with open(path) as f:
+        lines = f.readlines()
+        for line in lines:
+            labels = line.strip().split()
+            vid = labels[0]
+            start = float(labels[2])
+            duration = float(labels[3])
+            reg_label = labels[4]
+            label_dict[phase + "/" + vid].append(
+                {"start": start, "duration": duration, "label": reg_label}
+            )
+    return label_dict
+
+def tsne_visualize(feature_dict, save_dir = "./"):
+    if feature_dict is None:
+        return None
+    data = []
+    labels = []
+    for phase, features in feature_dict.items():
+        # for feature in features:
+        data.append(features.cpu().numpy())
+        labels += [phase] * features.shape[0]
+    data = np.concatenate(data, axis=0)
+    tsne = TSNE(n_components=2, random_state=42)
+    tsne_result = tsne.fit_transform(data)
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+
+    plt.figure(figsize=(16, 9))
+    plt.scatter(
+        tsne_result[:, 0],
+        tsne_result[:, 1],
+        c=encoded_labels,
+        cmap="viridis",
+        s=2,
+    )
+    # plt.savefig("./data/tsne_visualize.png")
+    base_filename = "tsne_visualize"
+    extension = ".png"
+    i = 1
+    while os.path.exists(os.path.join(save_dir, f"{base_filename}_{i}{extension}")):
+        i += 1
+    save_path = os.path.join(save_dir, f"{base_filename}_{i}{extension}")
+    
+    plt.savefig(save_path)
+
+def tsne_visualize_topk(feature_dict, save_dir = "./"):
+    if feature_dict is None:
+        return None
+    sorted_features = sorted(feature_dict.items(), key=lambda item: item[1].shape[0], reverse=True)[:20]
+
+    data = []
+    labels = []
+    for phase, features in sorted_features:
+        # for feature in features:
+        data.append(features.cpu().numpy())
+        labels += [phase] * features.shape[0]
+    data = np.concatenate(data, axis=0)
+    tsne = TSNE(n_components=2, random_state=42)
+    tsne_result = tsne.fit_transform(data)
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+
+    plt.figure(figsize=(16, 9))
+    scatter = plt.scatter(
+        tsne_result[:, 0],
+        tsne_result[:, 1],
+        c=encoded_labels,
+        cmap="tab20",
+        s=2,
+    )
+    
+    # Create a legend
+    handles, _ = scatter.legend_elements(prop="colors")
+    legend_labels = label_encoder.classes_
+    plt.legend(handles, legend_labels, title="Labels")
+
+
+    # plt.savefig("./data/tsne_visualize.png")
+    base_filename = "tsne_visualize_topK"
+    extension = ".png"
+    i = 1
+    while os.path.exists(os.path.join(save_dir, f"{base_filename}_{i}{extension}")):
+        i += 1
+    save_path = os.path.join(save_dir, f"{base_filename}_{i}{extension}")
+    
+    plt.savefig(save_path)
+    
+def calculate_sdr(feature_dict, save_dir="./"):
+    id_to_key = []
+    key_to_id = {}
+    for key in feature_dict.keys():
+        id_to_key.append(key)
+        key_to_id[key] = len(id_to_key) - 1
+    # D_intra = {}  # Intra-gloss distances
+    # D_inter = {}  # Inter-gloss distances
+    dist_matrix = torch.zeros([len(id_to_key), len(id_to_key)], dtype=torch.float64)
+    # import pdb;pdb.set_trace()
+    for key1, value1 in feature_dict.items():
+        for key2, value2 in feature_dict.items():
+            if key1 == key2:
+                N = value1.shape[0]
+                id1 = key_to_id[key1]
+                if value1.shape[0] < 2:
+                    dist_matrix[id1][id1] = 0  # No intra-gloss distance for single instance glosses
+                    continue
+                dist_matrix[id1][id1] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value1.unsqueeze(0), dim=2)).sum() / (N * (N-1))
+                # continue
+            else:
+                id1 = key_to_id[key1]
+                id2 = key_to_id[key2]
+                # import pdb;pdb.set_trace()
+                dist_matrix[id1][id2] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value2.unsqueeze(0), dim=2)).sum() / (value1.shape[0] * value2.shape[0])
+                dist_matrix[id2][id1] = dist_matrix[id1][id2]
+    avg_inter_dist = {}
+    for key in feature_dict.keys():
+        id1 = key_to_id[key]
+        avg_inter_dist[key] = dist_matrix[id1].sum().item() - dist_matrix[id1][id1].item()  # Exclude intra-gloss distance
+        avg_inter_dist[key] /= (len(id_to_key) - 1) 
+    
+    sdr_values = {}
+    for key in feature_dict.keys():
+        if avg_inter_dist[key] != 0:
+            key_id = key_to_id[key]
+            sdr_values[key] = (dist_matrix[key_id][key_id] / avg_inter_dist[key]).item()
+        else:
+            sdr_values[key] = 0
+    base_filename = "sdr_values"   
+    extension = ".json"
+    i = 1
+    while os.path.exists(os.path.join(save_dir, f"{base_filename}_{i}{extension}")):
+        i += 1
+    save_path = os.path.join(save_dir, f"{base_filename}_{i}{extension}")
+    with open(save_path, "w") as json_file:
+        json.dump(sdr_values, json_file, indent=4)
+    # import pdb;pdb.set_trace()
+    # print(sdr_values)
+    return sdr_values
+    # for key1, value1 in feature_dict.items():
+    #     for key2, value2 in feature_dict.items():
+    #         if key1 == key2:
+    #             continue
+            
+    # pass

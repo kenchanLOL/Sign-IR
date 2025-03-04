@@ -469,7 +469,6 @@ class gloss_free_model(nn.Module):
 
         frames_feature, image_feats = self.backbone(src_input['input_ids'].cuda(), src_input['src_length_batch'])
         attention_mask = src_input['attention_mask']
-
         inputs_embeds = self.sign_emb(frames_feature)
         inputs_embeds = self.embed_scale * inputs_embeds
 

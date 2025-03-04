@@ -63,7 +63,7 @@ class SomeOf(object):
 
 
 class S2T_Dataset(Dataset.Dataset):
-    def __init__(self, path, tokenizer, config, args, phase, training_refurbish=False):
+    def __init__(self, path, tokenizer, config, args, phase, training_refurbish=False, reg_label_path=None):
         self.config = config
         self.args = args
         self.training_refurbish = training_refurbish
@@ -75,7 +75,7 @@ class S2T_Dataset(Dataset.Dataset):
         self.max_length = config['data']['max_length']
 
         self.list = [key for key, value in self.raw_data.items()]
-
+        self.recognition_label = utils.load_recognition_label(reg_label_path, phase)
         sometimes = lambda aug: va.Sometimes(0.5, aug)  # Used to apply augmentor with 50% probability
         self.seq = va.Sequential([
             # va.RandomCrop(size=(240, 180)), # randomly crop video with a size of (240 x 180)
@@ -109,9 +109,30 @@ class S2T_Dataset(Dataset.Dataset):
         name_sample = sample['name']
 
         img_sample = self.load_imgs([self.img_path + x for x in sample['imgs_path']])
+        # import pdb; pdb.set_trace()
+        if self.recognition_label is not None:
+            recognition_label = self.recognition_label[key]
+            recognition_label = self.assign_recognition_label(recognition_label, img_sample)
+        else:
+            recognition_label = None
+        return name_sample, img_sample, tgt_sample, recognition_label
 
-        return name_sample, img_sample, tgt_sample
-
+    def assign_recognition_label(self, recognition_label, img_sample):
+        # import pdb;pdb.set_trace() 
+        t_max = recognition_label[0]["start"]
+        for item in recognition_label:
+            t_max += item["duration"]
+        timestamps = torch.linspace(recognition_label[0]["start"], t_max, img_sample.shape[0])
+        label_by_frame = []
+        cur_item = 0
+        for timestamp in timestamps:
+            if not(timestamp >= recognition_label[cur_item]["start"] and timestamp <= (recognition_label[cur_item]["start"] + recognition_label[cur_item]["duration"])):
+                cur_item += 1
+                if cur_item >= len(recognition_label):
+                    break
+            label_by_frame.append(recognition_label[cur_item]["label"])
+        return label_by_frame
+        
     def load_imgs(self, paths):
 
         data_transform = transforms.Compose([
@@ -147,16 +168,17 @@ class S2T_Dataset(Dataset.Dataset):
         return imgs
 
     def collate_fn(self, batch):
-
-        tgt_batch, img_tmp, src_length_batch, name_batch = [], [], [], []
-
-        for name_sample, img_sample, tgt_sample in batch:
+        tgt_batch, img_tmp, src_length_batch, name_batch, recognition_label_batch = [], [], [], [], []
+        for name_sample, img_sample, tgt_sample, recognition_label in batch:
             name_batch.append(name_sample)
 
             img_tmp.append(img_sample)
 
             tgt_batch.append(tgt_sample)
+            
+            recognition_label_batch.append(recognition_label)
 
+            # print(len(name_sample), len(recognition_label))
         max_len = max([len(vid) for vid in img_tmp])
         video_length = torch.LongTensor([np.ceil(len(vid) / 4.0) * 4 + 16 for vid in img_tmp])
         left_pad = 8
@@ -187,21 +209,28 @@ class S2T_Dataset(Dataset.Dataset):
             mask_gen.append(tmp)
         mask_gen = pad_sequence(mask_gen, padding_value=PAD_IDX, batch_first=True)
         img_padding_mask = (mask_gen != PAD_IDX).long()
-        with self.tokenizer.as_target_tokenizer():
-            tgt_input = self.tokenizer(tgt_batch, return_tensors="pt", padding=True, truncation=True)
-
+        # with self.tokenizer.as_target_tokenizer():
+        tgt_input = self.tokenizer(text_target=tgt_batch, return_tensors="pt", padding=True, truncation=True)
+        # Pad recognition_label_batch to match the length of img_tmp
+        padded_recognition_label_batch = []
+        for label in recognition_label_batch:
+            padded_label = ["<PAD>"] * left_pad + label + ["<PAD>"] * (max_len - len(label) - left_pad )
+            padded_recognition_label_batch.append(padded_label)
+        # print(padded_recognition_label_batch, new_src_lengths, src_length_batch)
         src_input = {}
         src_input['input_ids'] = img_batch
         src_input['attention_mask'] = img_padding_mask
 
         src_input['src_length_batch'] = src_length_batch
         src_input['new_src_length_batch'] = new_src_lengths
+        src_input['recognition_label'] = padded_recognition_label_batch
+        src_input['tgt_batch'] = tgt_batch
 
         if self.training_refurbish:
             masked_tgt = utils.NoiseInjecting(tgt_batch, self.args.noise_rate, noise_type=self.args.noise_type,
                                               random_shuffle=self.args.random_shuffle, is_train=(self.phase == 'train'))
-            with self.tokenizer.as_target_tokenizer():
-                masked_tgt_input = self.tokenizer(masked_tgt, return_tensors="pt", padding=True, truncation=True)
+            # with self.tokenizer.as_target_tokenizer():
+            masked_tgt_input = self.tokenizer(text_target=masked_tgt, return_tensors="pt", padding=True, truncation=True)
             return src_input, tgt_input, masked_tgt_input
         return src_input, tgt_input, name_batch  # @jinhui
 
@@ -249,8 +278,8 @@ class S2T_Dataset(Dataset.Dataset):
             mask_gen.append(tmp)
         mask_gen = pad_sequence(mask_gen, padding_value=PAD_IDX, batch_first=True)
         img_padding_mask = (mask_gen != PAD_IDX).long()
-        with self.tokenizer.as_target_tokenizer():
-            tgt_input = self.tokenizer(tgt_batch, return_tensors="pt", padding=True, truncation=True)
+        # with self.tokenizer.as_target_tokenizer():
+        tgt_input = self.tokenizer(text_target=tgt_batch, return_tensors="pt", padding=True, truncation=True)
 
         src_input = {}
         src_input['input_ids'] = img_batch
@@ -262,8 +291,8 @@ class S2T_Dataset(Dataset.Dataset):
         if self.training_refurbish:
             masked_tgt = utils.NoiseInjecting(tgt_batch, self.args.noise_rate, noise_type=self.args.noise_type,
                                               random_shuffle=self.args.random_shuffle, is_train=(self.phase == 'train'))
-            with self.tokenizer.as_target_tokenizer():
-                masked_tgt_input = self.tokenizer(masked_tgt, return_tensors="pt", padding=True, truncation=True)
+            # with self.tokenizer.as_target_tokenizer():
+            masked_tgt_input = self.tokenizer(text_target=masked_tgt, return_tensors="pt", padding=True, truncation=True)
             return src_input, tgt_input, masked_tgt_input
         return src_input, tgt_input
 
