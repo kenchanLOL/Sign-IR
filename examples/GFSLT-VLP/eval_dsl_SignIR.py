@@ -61,12 +61,19 @@ from definition import *
 import signcl as signcl
 
 cl_criterion = signcl.SignCL()
+# bin from GF_VLP
+binned_labels = {'bin_1': ['WO', 'ICH', 'SELTEN', 'SECHSHUNDERT', 'DU', 'DAZWISCHEN', 'ALLE', 'VERAENDERN', 'WINTER', 'UNTER', 'HABEN', 'neg-HABEN', 'KURZ', 'GEFRIEREN', 'negalp-AUCH', 'MAI', 'ZEIGEN-BILDSCHIRM', 'VORSICHT', 'SEE', 'METER', 'ZONE', 'DURCHGEHEND', 'TAUEN', 'UNTERSCHIED', 'VORAUSSAGE', 'FEBRUAR'], 'bin_2': ['NAH', 'TATSAECHLICH', 'DARUM', 'WIE-IMMER', 'NOVEMBER', 'ALLGAEU', 'MACHEN', 'ERSTE', 'DAUER', 'DRITTE', 'ACHTE', 'WIEDER', 'TAGSUEBER', 'WAS', 'REST', 'WECHSEL', 'SCHEINEN', 'GLEICH', 'ZWEITE', 'GERADE', 'HABEN2', 'NULL', 'M', 'OFT', 'VORAUS', 'WENIGER'], 'bin_3': ['WENIG', 'negalp-KEIN', 'ABWECHSELN', 'JUNI', 'MITTWOCH', 'MITTEILEN', 'NACHMITTAG', 'LANGSAM', 'GRAUPEL', 'DREI', 'KOELN', 'BURG', 'INFORMIEREN', 'SKANDINAVIEN', 'EIN-PAAR-TAGE', 'FUENFTE', 'WOCHE', 'SINKEN', 'HIMMEL', 'SCHOTTLAND', 'BERLIN', 'FEUCHT', 'MAXIMAL', 'VOGEL', 'neg-REGEN', 'AUGUST'], 'bin_4': ['ZUERST', 'GRUND', 'WIE-AUSSEHEN', 'MITTAG', 'WEITER', 'AUFLOESEN', 'PLUS', 'LOCKER', 'SCHWER', 'BODEN', 'DIENSTAG', 'TSCHUESS', 'ZWEI', 'MAERZ', 'APRIL', 'OKTOBER', 'STERN', 'HOEHE', 'BESSER', 'DREISSIG', 'UNWETTER', 'WALD', 'JULI', 'LEICHT', 'VIERZEHN', 'HAGEL'], 'bin_5': ['VOR', 'FUENF', 'SIEBEN', 'DABEI', 'IN-KOMMEND', 'AEHNLICH', 'ORT', 'SPAETER', 'BAYERN', 'HERBST', 'KUEHL', 'VIER', 'STRASSE', 'FROST', 'ZWISCHEN', 'MAL', 'ACHT', 'MONTAG', 'BRAND', 'EINS', 'DOCH', 'WIE', 'DREIZEHN', 'SACHSEN', 'SAMSTAG', 'DRUCK'], 'bin_6': ['NAECHSTE', 'GLATT', 'RUHIG', 'SCHNEIEN', 'NEUNZEHN', 'SEPTEMBER', 'SECHSZEHN', 'ZWOELF', 'SIEBZEHN', 'MIT', 'KALT', 'SPEZIELL', 'WAHRSCHEINLICH', 'SUEDOST', 'UEBERWIEGEND', 'SUEDWEST', 'BLEIBEN', 'NEUN', 'DESHALB', 'TEIL', 'BEGRUESSEN', 'NORDOST', 'STARK', 'DEZEMBER', 'NACH', 'WENN'], 'bin_7': ['MEER', 'BIS', 'WUENSCHEN', 'DEUTSCHLAND', 'MINUS', 'MISCHUNG', 'VERSCHIEDEN', 'WECHSELHAFT', 'ZUSCHAUER', 'HAUPTSAECHLICH', 'GEFAHR', 'FUENFZEHN', 'SEHEN', 'DONNERSTAG', 'TRUEB', 'LUFT', 'ODER', 'ABER', 'FRUEH', 'DAZU', 'SO', 'UEBER', 'TEMPERATUR', 'FREITAG', 'ANFANG', 'SONNTAG'], 'bin_8': ['NEBEL', 'HEISS', 'STURM', 'GEWITTER', 'ORKAN', 'FLUSS', 'NUR', 'MAESSIG', 'MEISTENS', 'ELF', 'LIEB', 'UND', 'LANG', 'LAND', 'BEWOELKT', 'SCHAUER', 'FRISCH', 'MILD', 'ZWANZIG', 'BISSCHEN', 'SCHWACH', 'KUESTE', 'KOENNEN', 'WOCHENENDE', 'ALPEN', 'MOEGLICH'], 'bin_9': ['IM-VERLAUF', 'BERG', 'SECHS', 'SCHON', 'ENORM', 'ACHTZEHN', 'TROCKEN', 'ZEHN', 'GRAD', 'VERSCHWINDEN', 'WOLKE', 'SUED', 'JANUAR', 'EUROPA', 'WARM', 'JETZT', 'NEU', 'OST', 'TEILWEISE', 'poss-EUCH', 'WEST', 'AUCH', 'TIEF', 'WARNUNG', 'NORDWEST', 'REGEN'], 'bin_10': ['MORGEN', 'DEUTSCH', 'FREUNDLICH', 'WIND', 'KOMMEN', 'NORD', 'VIEL', 'HOCH', 'NOCH', 'SONNE', 'GUT', 'SCHOEN', 'MITTE', 'KLAR', 'SCHNEE', 'DANN', 'SONST', 'REGION', 'BESONDERS', 'WETTER', 'WEHEN', 'AB', 'DIENST', 'STEIGEN', 'IX', 'NACHT', 'ABEND', 'MEHR', 'TAG', 'HEUTE']}
+#  bin from SignCL
+# binned_labels = {'bin_1': ['WO', 'DU', 'negalp-AUCH', 'ICH', 'DAZWISCHEN', 'SELTEN', 'VERAENDERN', 'SECHSHUNDERT', 'UNTER', 'ALLE', 'DURCHGEHEND', 'ZEIGEN-BILDSCHIRM', 'ALLGAEU', 'neg-HABEN', 'GERADE', 'EIN-PAAR-TAGE', 'FEBRUAR', 'KURZ', 'SKANDINAVIEN', 'WIE-IMMER', 'GEFRIEREN', 'SEE', 'METER', 'SINKEN', 'TATSAECHLICH', 'M'], 'bin_2': ['WAS', 'MAI', 'MITTEILEN', 'INFORMIEREN', 'TAGSUEBER', 'ACHTE', 'SCHEINEN', 'HABEN', 'NACHMITTAG', 'DAUER', 'GLEICH', 'MACHEN', 'WINTER', 'ZONE', 'ERSTE', 'VORAUSSAGE', 'VORAUS', 'UNTERSCHIED', 'WENIGER', 'JUNI', 'MAERZ', 'GRAUPEL', 'neg-REGEN', 'SPAETER', 'DARUM', 'SIEBEN'], 'bin_3': ['FUENFTE', 'WIE-AUSSEHEN', 'AUGUST', 'DREI', 'DRITTE', 'DIENSTAG', 'APRIL', 'NULL', 'HOEHE', 'TSCHUESS', 'ZWEI', 'BEWOELKT', 'negalp-KEIN', 'JULI', 'AUFLOESEN', 'WECHSEL', 'NAH', 'SCHOTTLAND', 'DEZEMBER', 'NOVEMBER', 'BURG', 'REST', 'LANGSAM', 'PLUS', 'MITTWOCH', 'BEGRUESSEN'], 'bin_4': ['WUENSCHEN', 'TAUEN', 'WENIG', 'GRUND', 'BODEN', 'WIEDER', 'DABEI', 'OKTOBER', 'ZWISCHEN', 'WEITER', 'MAXIMAL', 'VERSCHIEDEN', 'VORSICHT', 'ABWECHSELN', 'DRUCK', 'IN-KOMMEND', 'WOCHE', 'GLATT', 'HABEN2', 'KOMMEN', 'DREIZEHN', 'EINS', 'BAYERN', 'ZUSCHAUER', 'NAECHSTE', 'HAGEL'], 'bin_5': ['ZUERST', 'HIMMEL', 'VOGEL', 'ACHT', 'SEHEN', 'NEBEL', 'SECHSZEHN', 'VIERZEHN', 'DREISSIG', 'FUENFZEHN', 'WAHRSCHEINLICH', 'BERLIN', 'UND', 'SACHSEN', 'HERBST', 'ANFANG', 'SUEDOST', 'SECHS', 'KOELN', 'DESHALB', 'LOCKER', 'DAZU', 'MEISTENS', 'GRAD', 'SO', 'ABER'], 'bin_6': ['VERSCHWINDEN', 'UEBER', 'ZWOELF', 'LIEB', 'TEIL', 'MITTAG', 'OFT', 'SUEDWEST', 'BRAND', 'WENN', 'WALD', 'KOENNEN', 'DEUTSCHLAND', 'ORT', 'SAMSTAG', 'SEPTEMBER', 'poss-EUCH', 'BLEIBEN', 'STERN', 'SUED', 'BESSER', 'GUT', 'MONTAG', 'VIER', 'ORKAN', 'NACH'], 'bin_7': ['FUENF', 'TRUEB', 'ZWEITE', 'FLUSS', 'NEUNZEHN', 'BISSCHEN', 'HAUPTSAECHLICH', 'WIE', 'MINUS', 'RUHIG', 'MISCHUNG', 'SONNTAG', 'ZEHN', 'TEMPERATUR', 'LAND', 'JETZT', 'SCHNEIEN', 'UEBERWIEGEND', 'LANG', 'NORDOST', 'KALT', 'ACHTZEHN', 'JANUAR', 'HOCH', 'KUEHL', 'SIEBZEHN'], 'bin_8': ['ALPEN', 'ZWANZIG', 'NUR', 'MIT', 'MAL', 'WECHSELHAFT', 'SCHWER', 'BERG', 'SCHON', 'MORGEN', 'AEHNLICH', 'LEICHT', 'MOEGLICH', 'STRASSE', 'WEHEN', 'WOLKE', 'BIS', 'STURM', 'FRISCH', 'ELF', 'GEFAHR', 'LUFT', 'WOCHENENDE', 'REGION', 'REGEN', 'SONST'], 'bin_9': ['OST', 'VOR', 'FRUEH', 'MILD', 'TIEF', 'FROST', 'EUROPA', 'KUESTE', 'SONNE', 'NORDWEST', 'DEUTSCH', 'STARK', 'GEWITTER', 'FREITAG', 'SCHWACH', 'DOCH', 'WEST', 'SCHAUER', 'DONNERSTAG', 'MEER', 'FEUCHT', 'BESONDERS', 'SPEZIELL', 'MITTE', 'NORD', 'UNWETTER'], 'bin_10': ['AB', 'HEISS', 'AUCH', 'WIND', 'WARM', 'IM-VERLAUF', 'NEUN', 'IX', 'KLAR', 'NEU', 'WETTER', 'WARNUNG', 'ODER', 'VIEL', 'TAG', 'ENORM', 'SCHNEE', 'MEHR', 'MAESSIG', 'HEUTE', 'DANN', 'TROCKEN', 'NACHT', 'ABEND', 'SCHOEN', 'NOCH', 'DIENST', 'FREUNDLICH', 'TEILWEISE', 'STEIGEN']}
 
+# bin from CLIP 
+# binned_labels = {'bin_1': ['WO', 'DU', 'SELTEN', 'ICH', 'DAZWISCHEN', 'ALLE', 'UNTER', 'ALLGAEU', 'SECHSHUNDERT', 'VERAENDERN', 'KURZ', 'neg-HABEN', 'WINTER', 'negalp-AUCH', 'ZEIGEN-BILDSCHIRM', 'SEE', 'DURCHGEHEND', 'EIN-PAAR-TAGE', 'GEFRIEREN', 'TATSAECHLICH', 'MACHEN', 'VORAUSSAGE', 'MITTEILEN', 'M', 'UNTERSCHIED', 'ACHTE'], 'bin_2': ['VORSICHT', 'ERSTE', 'DRITTE', 'SKANDINAVIEN', 'ZONE', 'NULL', 'DAUER', 'WAS', 'GERADE', 'METER', 'GLEICH', 'WENIGER', 'HABEN', 'TAGSUEBER', 'WIE-IMMER', 'DARUM', 'GRAUPEL', 'neg-REGEN', 'NOVEMBER', 'SIEBEN', 'FUENFTE', 'ABWECHSELN', 'SCHOTTLAND', 'SINKEN', 'WIEDER', 'NACHMITTAG'], 'bin_3': ['SCHEINEN', 'WECHSEL', 'DREI', 'ZWEI', 'VORAUS', 'DIENSTAG', 'NAH', 'INFORMIEREN', 'TSCHUESS', 'JUNI', 'MITTWOCH', 'MAI', 'HOEHE', 'HABEN2', 'KOELN', 'GRUND', 'WIE-AUSSEHEN', 'REST', 'VOGEL', 'PLUS', 'ZWEITE', 'VIERZEHN', 'HAGEL', 'AUFLOESEN', 'GLATT', 'BURG'], 'bin_4': ['BAYERN', 'NAECHSTE', 'APRIL', 'FUENFZEHN', 'SECHSZEHN', 'TAUEN', 'DREISSIG', 'ZUERST', 'WOCHE', 'LOCKER', 'OFT', 'FUENF', 'LANGSAM', 'negalp-KEIN', 'ZWISCHEN', 'WEITER', 'WENIG', 'DREIZEHN', 'EINS', 'UEBER', 'DRUCK', 'ACHT', 'BRAND', 'SCHWER', 'IN-KOMMEND', 'MAXIMAL'], 'bin_5': ['MONTAG', 'WENN', 'SPAETER', 'HIMMEL', 'DOCH', 'SACHSEN', 'FEBRUAR', 'SUEDOST', 'DABEI', 'SUEDWEST', 'HERBST', 'STRASSE', 'SONNTAG', 'ZWOELF', 'SECHS', 'TRUEB', 'WALD', 'UND', 'ORT', 'SIEBZEHN', 'VERSCHIEDEN', 'BERLIN', 'NEUNZEHN', 'WUENSCHEN', 'DEUTSCHLAND', 'VOR'], 'bin_6': ['SAMSTAG', 'BODEN', 'LEICHT', 'AUGUST', 'MITTAG', 'ACHTZEHN', 'ZWANZIG', 'TEMPERATUR', 'AEHNLICH', 'TEIL', 'MAERZ', 'poss-EUCH', 'ZUSCHAUER', 'DAZU', 'BEWOELKT', 'ELF', 'FLUSS', 'BLEIBEN', 'FRUEH', 'SEPTEMBER', 'NEBEL', 'LAND', 'WIE', 'ANFANG', 'WAHRSCHEINLICH', 'NEUN'], 'bin_7': ['KALT', 'UNWETTER', 'EUROPA', 'BESSER', 'HAUPTSAECHLICH', 'SCHNEIEN', 'MIT', 'DESHALB', 'SUED', 'OKTOBER', 'MISCHUNG', 'STERN', 'UEBERWIEGEND', 'DEZEMBER', 'SPEZIELL', 'MAL', 'MINUS', 'VIER', 'SO', 'GRAD', 'ABER', 'DONNERSTAG', 'BEGRUESSEN', 'RUHIG', 'BIS', 'WECHSELHAFT'], 'bin_8': ['SEHEN', 'HOCH', 'STURM', 'LIEB', 'ZEHN', 'KUEHL', 'NUR', 'LUFT', 'FEUCHT', 'LANG', 'HEISS', 'MEISTENS', 'KOENNEN', 'WOCHENENDE', 'AB', 'GEFAHR', 'KOMMEN', 'SONST', 'NACH', 'IM-VERLAUF', 'MEER', 'GEWITTER', 'ODER', 'FRISCH', 'FREITAG', 'VERSCHWINDEN'], 'bin_9': ['TIEF', 'STARK', 'SCHWACH', 'GUT', 'WEST', 'NORDOST', 'ENORM', 'NEU', 'SCHAUER', 'OST', 'MORGEN', 'REGEN', 'BISSCHEN', 'ALPEN', 'JANUAR', 'VIEL', 'MILD', 'NORDWEST', 'BERG', 'DEUTSCH', 'FROST', 'MAESSIG', 'WEHEN', 'SCHON', 'AUCH', 'WARM'], 'bin_10': ['KUESTE', 'ORKAN', 'REGION', 'JETZT', 'MOEGLICH', 'WIND', 'WOLKE', 'WETTER', 'SCHNEE', 'SONNE', 'BESONDERS', 'NORD', 'WARNUNG', 'TEILWEISE', 'TAG', 'MITTE', 'KLAR', 'NOCH', 'IX', 'NACHT', 'JULI', 'STEIGEN', 'HEUTE', 'TROCKEN', 'FREUNDLICH', 'MEHR', 'SCHOEN', 'DIENST', 'ABEND', 'DANN']}
 
 def get_args_parser():
     parser = argparse.ArgumentParser(
         "Gloss-free Sign Language Translation script", add_help=False
     )
+    parser.add_argument('--debug', action="store_true", help="disable distributed setting")
     parser.add_argument("--batch-size", default=16, type=int)
 
     # * distributed training parameters
@@ -87,6 +94,8 @@ def get_args_parser():
     )
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--resume", default="", help="resume from checkpoint")
+    # parser.add_argument("--finetune", action="store_true", help="load pretrained visual and text encoder for SLT finetuning")
+    
     # parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
     # parser.add_argument(
     #     "--dist-eval",
@@ -113,6 +122,8 @@ def get_args_parser():
     # * visualization
     parser.add_argument("--attn_visualize", action="store_true")
     parser.add_argument("--tsne_visualize", action="store_true")
+    parser.add_argument("--ouput_feature", action="store_true")
+    # parser.add_argument("--bin_bleu", action="store_true")
 
     return parser
 
@@ -133,28 +144,6 @@ def main(args, config):
     print(f"Creating dataset:")
     tokenizer = MBartTokenizer.from_pretrained(config["model"]["transformer"])
 
-    # train_data = S2T_Dataset(
-    #     path=config["data"]["train_label_path"],
-    #     tokenizer=tokenizer,
-    #     config=config,
-    #     args=args,
-    #     phase="train",
-    #     reg_label_path=config["data"]["dev_reg_label_path"]
-        
-    # )
-    # print("train dataset", train_data)
-    # train_sampler = torch.utils.data.distributed.DistributedSampler(
-    #     train_data, shuffle=True
-    # )
-    # train_dataloader = DataLoader(
-    #     train_data,
-    #     batch_size=args.batch_size,
-    #     num_workers=args.num_workers,
-    #     collate_fn=train_data.collate_fn,
-    #     sampler=train_sampler,
-    #     pin_memory=args.pin_mem,
-    # )
-
     dev_data = S2T_Dataset(
         path=config["data"]["dev_label_path"],
         tokenizer=tokenizer,
@@ -164,9 +153,10 @@ def main(args, config):
         reg_label_path=config["data"]["dev_reg_label_path"]
     )
     print("dev dataset", dev_data)
-    dev_sampler = torch.utils.data.distributed.DistributedSampler(
-        dev_data, shuffle=False
-    )
+    if args.debug:
+        dev_sampler = None
+    else:
+        dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data, shuffle=False)
     dev_dataloader = DataLoader(
         dev_data,
         batch_size=args.batch_size,
@@ -186,9 +176,10 @@ def main(args, config):
         reg_label_path=config["data"]["test_reg_label_path"]
     )
     print("test dataset", test_data)
-    test_sampler = torch.utils.data.distributed.DistributedSampler(
-        test_data, shuffle=False
-    )
+    if args.debug:
+        test_sampler = None
+    else:
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=False)
     test_dataloader = DataLoader(
         test_data,
         batch_size=args.batch_size,
@@ -228,22 +219,22 @@ def main(args, config):
             "Please specify the trained model: --resume /path/to/best_checkpoint.pth"
         )
 
-    test_stats = evaluate(
-        args,
-        dev_dataloader,
-        model,
-        model_without_ddp,
-        tokenizer,
-        criterion,
-        config,
-        UNK_IDX,
-        SPECIAL_SYMBOLS,
-        PAD_IDX,
-        device,
-    )
-    print(
-        f"BELU-4 of the network on the {len(dev_dataloader)} dev videos: {test_stats['belu4']:.2f} "
-    )
+    # test_stats = evaluate(
+    #     args,
+    #     dev_dataloader,
+    #     model,
+    #     model_without_ddp,
+    #     tokenizer,
+    #     criterion,
+    #     config,
+    #     UNK_IDX,
+    #     SPECIAL_SYMBOLS,
+    #     PAD_IDX,
+    #     device,
+    # )
+    # print(
+    #     f"BELU-4 of the network on the {len(dev_dataloader)} dev videos: {test_stats['belu4']:.2f} "
+    # )
     test_stats = evaluate(
         args,
         test_dataloader,
@@ -288,6 +279,7 @@ def evaluate(
         tgt_refs = []
         if args.tsne_visualize:
             frame_feats_by_recognition_label = {}
+            pred_by_recognition_label = {}
         for step, (src_input, tgt_input, _) in enumerate(
             metric_logger.log_every(dev_dataloader, 10, header)
         ):
@@ -333,6 +325,8 @@ def evaluate(
             for i in range(len(output)):
                 tgt_pres.append(output[i, :])
                 tgt_refs.append(tgt_input["input_ids"][i, :])
+                
+            
             if args.tsne_visualize:
                 all_frame_feats = frames_feature.reshape(-1, frames_feature.shape[-1]).cuda()
                 all_labels = []
@@ -354,9 +348,21 @@ def evaluate(
                             ),
                             dim=0,
                         )
-        if args.tsne_visualize:
+                for idx, l in enumerate(src_input["recognition_label"]):
+                    for l2 in set(l):
+                        # tgt_pres.append(output[i, :])
+                        # tgt_refs.append(tgt_input["input_ids"][i, :])
+                        if l2 == "<PAD>":
+                            continue
+                        elif l2 not in pred_by_recognition_label:
+                            pred_by_recognition_label[l2] = [[output[idx, :]], [tgt_input["input_ids"][idx, :]]]
+                        else:
+                            pred_by_recognition_label[l2][0].append(output[idx, :])
+                            pred_by_recognition_label[l2][1].append(tgt_input["input_ids"][idx, :])
+                # break
+        if args.ouput_feature:
             # utils.tsne_visualize(frame_feats_by_recognition_label, save_dir=args.output_dir)
-            utils.tsne_visualize_topk(frame_feats_by_recognition_label, save_dir=args.output_dir)
+            # utils.tsne_visualize_topk(frame_feats_by_recognition_label, save_dir=args.output_dir)
             import pickle
             base_filename = "frame_features"
             extension = ".pickle"
@@ -393,6 +399,23 @@ def evaluate(
             top1=metric_logger.belu4, losses=metric_logger.loss
         )
     )
+
+    bin_bleu_scores = {}
+    for bin_label, labels in binned_labels.items():
+        bin_preds = []
+        bin_refs = []
+        for label in labels:
+            if label in pred_by_recognition_label:
+                preds, refs = pred_by_recognition_label[label]
+                bin_preds.extend(preds)
+                bin_refs.extend(refs)
+        if bin_preds and bin_refs:
+            bin_preds = tokenizer.batch_decode(bin_preds, skip_special_tokens=True)
+            bin_refs = tokenizer.batch_decode(bin_refs, skip_special_tokens=True)
+            bin_bleu_score = bleu.corpus_score(bin_preds, [bin_refs]).score
+            
+            bin_bleu_scores[bin_label] = bin_bleu_score
+            print(f"BLEU-4 score for {bin_label}: {bin_bleu_score:.2f}")
 
     os.makedirs(name=args.output_dir + "/output", exist_ok=True)
     with open(args.output_dir + f"/output/tmp_pres_{epoch}.txt", "w") as f:

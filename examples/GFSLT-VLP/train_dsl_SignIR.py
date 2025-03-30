@@ -62,6 +62,8 @@ cl_criterion = signcl.SignCL()
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Gloss-free Sign Language Translation script', add_help=False)
+    parser.add_argument('--debug', action="store_true", help="disable distributed setting")
+    
     parser.add_argument('--batch-size', default=16, type=int)
     parser.add_argument('--epochs', default=80, type=int)
 
@@ -168,12 +170,17 @@ def get_args_parser():
 
     # * visualization
     parser.add_argument('--visualize', action='store_true')
+    parser.add_argument('--ignore_signcl', action='store_true')
 
     return parser
 
 
 def main(args, config):
-    utils.init_distributed_mode(args)
+    print("Initializing distributed mode...")
+    if args.debug:
+        args.distributed = False
+    else:
+        utils.init_distributed_mode(args)
     print(args)
 
     device = torch.device(args.device)
@@ -191,7 +198,10 @@ def main(args, config):
     train_data = S2T_Dataset(path=config['data']['train_label_path'], tokenizer=tokenizer, config=config, args=args,
                              phase='train')
     print(train_data)
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=True)
+    if args.debug:
+        train_sampler = None
+    else:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=True)
     train_dataloader = DataLoader(train_data,
                                   batch_size=args.batch_size,
                                   num_workers=args.num_workers,
@@ -203,7 +213,10 @@ def main(args, config):
     dev_data = S2T_Dataset(path=config['data']['dev_label_path'], tokenizer=tokenizer, config=config, args=args,
                            phase='val')
     print(dev_data)
-    dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data, shuffle=False)
+    if args.debug:
+        dev_sampler = None
+    else:
+        dev_sampler = torch.utils.data.distributed.DistributedSampler(dev_data, shuffle=False)
     dev_dataloader = DataLoader(dev_data,
                                 batch_size=args.batch_size,
                                 num_workers=args.num_workers,
@@ -214,7 +227,10 @@ def main(args, config):
     test_data = S2T_Dataset(path=config['data']['test_label_path'], tokenizer=tokenizer, config=config, args=args,
                             phase='test')
     print(test_data)
-    test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=False)
+    if args.debug:
+        test_sampler = None
+    else:
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=False)
     test_dataloader = DataLoader(test_data,
                                  batch_size=args.batch_size,
                                  num_workers=args.num_workers,
@@ -256,7 +272,7 @@ def main(args, config):
             if 'text_decoder' in state_dict and config['model']["decoder_type"] != "LLMD":
                 for k, v in state_dict['text_decoder'].items():
                     if 'decoder' in k:
-                        k = 'mbart.model.decoder.'+k.split('text_decoder.', 1)[1]
+                        k = 'mbart.model.decoder.' + '.'.join(k.split('.')[2:])
                         if can_require_grad(v):
                             v.requires_grad = True
                         new_state_dict[k] = v
@@ -285,7 +301,7 @@ def main(args, config):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=False)
         model_without_ddp = model.module
     n_parameters = utils.count_parameters_in_MB(model_without_ddp)
-    print(f'number of params: {n_parameters}M')
+    print(f'number of params: {n_parameters}M') # number of params: 113.78336M
 
     optimizer = create_optimizer(args, model_without_ddp)
 
@@ -342,10 +358,8 @@ def main(args, config):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
-        train_stats = train_one_epoch(args, model, criterion, train_dataloader, optimizer, device, epoch, config,
-                                      loss_scaler, mixup_fn, cl_decay=cl_decay)
+        train_stats = train_one_epoch(args, model, criterion, train_dataloader, optimizer, device, epoch, config, loss_scaler, mixup_fn, cl_decay=cl_decay, gradient_accumulation_steps = config['training']['gradient_accumulation_steps'])
         lr_scheduler.step(epoch)
-
         if args.output_dir and utils.is_main_process():
             checkpoint_paths = [output_dir / f'checkpoint.pth']
             for checkpoint_path in checkpoint_paths:
@@ -420,7 +434,7 @@ def main(args, config):
 def train_one_epoch(args, model: torch.nn.Module, criterion: nn.CrossEntropyLoss,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, config, loss_scaler, mixup_fn=None, max_norm: float = 0,
-                    set_training_mode=True, cl_decay=1.0):
+                    set_training_mode=True, cl_decay=1.0, gradient_accumulation_steps: int = 1):
     model.train(set_training_mode)
 
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -436,31 +450,37 @@ def train_one_epoch(args, model: torch.nn.Module, criterion: nn.CrossEntropyLoss
         label = tgt_input['input_ids'].reshape(-1)
         logits = out_logits.reshape(-1, out_logits.shape[-1])
         tgt_loss = criterion(logits, label.to(device, non_blocking=True))
-
-        margin = max(10, int((frames_feature.shape[1] // tgt_input['input_ids'].shape[1] + 1) * 2.3)) * 2
-        num_negative = 30
-        margin = min(margin, int((frames_feature.shape[1] - num_negative) / 2)) #ensure num_frames margin for negative sampling
-
-
-        cl_loss = cl_criterion(frames_feature, margin=margin)
+        if not args.ignore_signcl:
+            margin = max(10, int((frames_feature.shape[1] // tgt_input['input_ids'].shape[1] + 1) * 2.3)) * 2
+            num_negative = 30
+            margin = min(margin, int((frames_feature.shape[1] - num_negative) / 2)) #ensure num_frames margin for negative sampling
+            cl_loss = cl_criterion(frames_feature, margin=margin)
 
         if epoch < args.warmup_epochs:
             total_loss += tgt_loss
         else:
-            total_loss += tgt_loss + 0.06 * cl_loss * cl_decay
-        optimizer.zero_grad()
+            if args.ignore_signcl:
+                total_loss += tgt_loss
+            else:
+                total_loss += tgt_loss + 0.06 * cl_loss * cl_decay
         total_loss.backward()
         # loss.backward()
-        optimizer.step()
+        # optimizer.zero_grad()
+        # optimizer.step()
+        if (step + 1) % gradient_accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
 
         loss_value = tgt_loss.item()
-        loss_cl = cl_loss.item()
+        if not args.ignore_signcl:
+            loss_cl = cl_loss.item()
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
 
         metric_logger.update(loss=loss_value)
-        metric_logger.update(cl_loss=loss_cl)
+        if not args.ignore_signcl:
+            metric_logger.update(cl_loss=loss_cl)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         metric_logger.update(lr_mbart=round(float(optimizer.param_groups[1]["lr"]), 8))
 
