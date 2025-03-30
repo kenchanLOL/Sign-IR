@@ -1,0 +1,18 @@
+name: GFSLT-VLP
+data:
+  train_label_path: ./data/PHOENIX-2014-T/labels.train
+  dev_label_path: ./data/PHOENIX-2014-T/labels.dev
+  test_label_path: ./data/PHOENIX-2014-T/labels.test
+  img_path: ./data/PHOENIX-2014-T/features/fullFrame-210x260px/
+  dev_reg_label_path: ./data/PHOENIX-2014-T/evaluation/sign-recognition/out.example-hypothesis-dev.ctm
+  test_reg_label_path: ./data/PHOENIX-2014-T/evaluation/sign-recognition/out.example-hypothesis-test.ctm
+  max_length: 300
+training:
+  wandb: disabled # online or disabled
+  scale_embedding: False
+  gradient_accumulation_steps: 2
+model:
+  tokenizer: ./pretrain_models/MBart_trimmed
+  transformer:  ./pretrain_models/MBart_trimmed
+  visual_encoder: ./pretrain_models/mytran
+  sign_proj: True

@@ -279,14 +279,10 @@ def init_distributed_mode(args):
         print("Not using distributed mode")
         args.distributed = False
         return
-
     args.distributed = True
 
     torch.cuda.set_device(args.gpu)
     args.dist_backend = "nccl"
-    print(
-        "| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True
-    )
     torch.distributed.init_process_group(
         backend=args.dist_backend,
         init_method=args.dist_url,
@@ -294,6 +290,9 @@ def init_distributed_mode(args):
         rank=args.rank,
     )
     torch.distributed.barrier()
+    print(
+        "| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True
+    )
     setup_for_distributed(args.rank == 0)
 
 
@@ -612,6 +611,78 @@ class KLLoss(torch.nn.Module):
         return loss
 
 
+class ClipLoss(torch.nn.Module):
+
+    def __init__(
+            self,
+            local_loss=False,
+            gather_with_grad=False,
+            cache_labels=False,
+            rank=0,
+            world_size=1
+    ):
+        super().__init__()
+        self.local_loss = local_loss
+        self.gather_with_grad = gather_with_grad
+        self.cache_labels = cache_labels
+        self.rank = rank
+        self.world_size = world_size
+
+        # cache state
+        self.prev_num_logits = 0
+        self.labels = {}
+
+    def get_ground_truth(self, device, num_logits) -> torch.Tensor:
+        # calculated ground-truth and cache if enabled
+        if self.prev_num_logits != num_logits or device not in self.labels:
+            labels = torch.arange(num_logits, device=device, dtype=torch.long)
+            if self.world_size > 1 and self.local_loss:
+                labels = labels + num_logits * self.rank
+            if self.cache_labels:
+                self.labels[device] = labels
+                self.prev_num_logits = num_logits
+        else:
+            labels = self.labels[device]
+        return labels
+
+    def get_logits(self, image_features, text_features, logit_scale):
+        # if self.world_size > 1:
+        #     all_image_features, all_text_features = gather_features(
+        #         image_features,
+        #         text_features,
+        #         local_loss=self.local_loss,
+        #         gather_with_grad=self.gather_with_grad,
+        #         rank=self.rank,
+        #         world_size=self.world_size,
+        #         use_horovod=self.use_horovod,
+        #     )
+
+        #     if self.local_loss:
+        #         logits_per_image = logit_scale * image_features @ all_text_features.T
+        #         logits_per_text = logit_scale * text_features @ all_image_features.T
+        #     else:
+        #         logits_per_image = logit_scale * all_image_features @ all_text_features.T
+        #         logits_per_text = logits_per_image.T
+        # else:
+        
+        logits_per_image = logit_scale * image_features @ text_features.T
+        logits_per_text = logit_scale * text_features @ image_features.T
+        
+        return logits_per_image, logits_per_text
+
+    def forward(self, image_features, text_features, logit_scale, output_dict=False):
+        device = image_features.device
+        logits_per_image, logits_per_text = self.get_logits(image_features, text_features, logit_scale)
+
+        labels = self.get_ground_truth(device, logits_per_image.shape[0])
+
+        total_loss = (
+            F.cross_entropy(logits_per_image, labels) +
+            F.cross_entropy(logits_per_text, labels)
+        ) / 2
+
+        return {"contrastive_loss": total_loss} if output_dict else total_loss
+
 def loss_fn_kd(outputs, teacher_outputs, T=1.0, alpha=0.5):
     """
     Compute the knowledge-distillation (KD) loss given outputs, labels.
@@ -878,6 +949,56 @@ def tsne_visualize(feature_dict, save_dir = "./"):
     
     plt.savefig(save_path)
 
+def tsne_visualize_bins(feature_dict, binned_labels, save_dir="./"):
+    if feature_dict is None:
+        return None
+    # Prepare data and labels
+    data = []
+    labels = []
+    for phase, features in feature_dict.items():
+        data.append(features.cpu().numpy())
+        labels += [phase] * features.shape[0]
+    data = np.concatenate(data, axis=0)
+    
+    # Perform t-SNE
+    tsne = TSNE(n_components=2, random_state=42)
+    tsne_result = tsne.fit_transform(data)
+    
+    # Encode labels
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+    
+    # Create a mapping from label to t-SNE coordinates
+    label_to_tsne = {label: tsne_result[i] for i, label in enumerate(labels)}
+    
+    # Plot t-SNE for each bin
+    for bin_label, bin_labels in binned_labels.items():
+        plt.figure(figsize=(16, 9))
+        
+        # Plot all points in gray
+        plt.scatter(tsne_result[:, 0], tsne_result[:, 1], c='gray', s=2, alpha=0.5)
+        
+        # Highlight points in the current bin with different colors
+        bin_indices = [i for i, label in enumerate(labels) if label in bin_labels]
+        bin_colors = [encoded_labels[i] for i in bin_indices]
+        plt.scatter(tsne_result[bin_indices, 0], tsne_result[bin_indices, 1], c=bin_colors, cmap='tab20', s=2)
+        
+        # Create a legend
+        handles, _ = plt.scatter(tsne_result[bin_indices, 0], tsne_result[bin_indices, 1], c=bin_colors, cmap='tab20', s=2).legend_elements(prop="colors")
+        legend_labels = label_encoder.inverse_transform(np.unique(bin_colors))
+        plt.legend(handles, legend_labels, title="Labels")
+        
+        # Save the plot
+        base_filename = f"tsne_visualize_{bin_label}"
+        extension = ".png"
+        # i = 1
+        # while os.path.exists(os.path.join(save_dir, f"{base_filename}_{i}{extension}")):
+        #     i += 1
+        save_path = os.path.join(save_dir, f"{base_filename}{extension}")
+        plt.savefig(save_path)
+        plt.close()
+        
+
 def tsne_visualize_topk(feature_dict, save_dir = "./"):
     if feature_dict is None:
         return None
@@ -938,14 +1059,21 @@ def calculate_sdr(feature_dict, save_dir="./"):
                 if value1.shape[0] < 2:
                     dist_matrix[id1][id1] = 0  # No intra-gloss distance for single instance glosses
                     continue
-                dist_matrix[id1][id1] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value1.unsqueeze(0), dim=2)).sum() / (N * (N-1))
+                dists = torch.cdist(value1, value1, p=2) # Euclidean distances
+                intra_sum = dists.sum() - dists.diag().sum() # remove self-distances
+                dist_matrix[id1][id1] = intra_sum / (N * (N - 1))
+                # dist_matrix[id1][id1] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value1.unsqueeze(0), dim=2)).sum() / (N * (N-1))
                 # continue
             else:
                 id1 = key_to_id[key1]
                 id2 = key_to_id[key2]
+                dists = torch.cdist(value1, value2, p=2)
+                inter_avg = dists.mean()
+                dist_matrix[id1][id2] = inter_avg
+                dist_matrix[id2][id1] = inter_avg
                 # import pdb;pdb.set_trace()
-                dist_matrix[id1][id2] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value2.unsqueeze(0), dim=2)).sum() / (value1.shape[0] * value2.shape[0])
-                dist_matrix[id2][id1] = dist_matrix[id1][id2]
+                # dist_matrix[id1][id2] = (1 - torch.nn.functional.cosine_similarity(value1.unsqueeze(1), value2.unsqueeze(0), dim=2)).sum() / (value1.shape[0] * value2.shape[0])
+                # dist_matrix[id2][id1] = dist_matrix[id1][id2]
     avg_inter_dist = {}
     for key in feature_dict.keys():
         id1 = key_to_id[key]

@@ -112,7 +112,7 @@ def build_data_file_format():
 # build_data_file_format()
 
 
-raw_data = load_dataset_file('data/Phonexi-2014T/labels.train')
+raw_data = load_dataset_file('./data/PHOENIX-2014-T/labels.train')
 
 data = []
 
@@ -126,13 +126,13 @@ tokenizer = MBartTokenizer.from_pretrained("./pretrain_models/MBart_proun", src_
 
 model = MBartForConditionalGeneration.from_pretrained("./pretrain_models/MBart_proun")
 configuration = model.config
-
 # trim tokenizer
 tt = TokenizerTrimmer(tokenizer)
 tt.make_vocab(data)
 tt.make_tokenizer()
 
 # trim model
+print(len(tt.trimmed_vocab_ids))
 mt = MBartTrimmer(model, configuration, tt.trimmed_tokenizer)
 mt.make_weights(tt.trimmed_vocab_ids)
 mt.make_model()
