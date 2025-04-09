@@ -8,7 +8,7 @@ data:
   img_path: ./data/PHOENIX-2014-T/features/fullFrame-210x260px/
   max_length: 300
 training:
-  wandb: online # online or disabled
+  wandb: disable # online or disabled
   scale_embedding: False
   gradient_accumulation_steps: 2
 model:

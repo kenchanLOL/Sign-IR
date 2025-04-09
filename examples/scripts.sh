@@ -22,7 +22,7 @@ cd ./GFSLT-VLP
 # eval tsne viz
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
 #     eval_dsl_SignIR.py --batch-size 4 \
-#     --output_dir out/GF_vlp_eval --config ./configs/config_gf_vlp.yaml \
+#     --output_dir out/GF_vlp_v2_eval --config ./configs/config_gf_vlp.yaml \
 #     --resume out/GF_vlp_v2_finetune/best_checkpoint.pth --decoder-type LD \
 #     --tsne_visualize
 
@@ -32,11 +32,11 @@ cd ./GFSLT-VLP
 #     --resume out/GF_SignCL/best_checkpoint.pth --decoder-type LD \
 #     --tsne_visualize
 
-# CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
-#     eval_dsl_SignIR.py --batch-size 4 \
-#     --output_dir out/SignIR_CLIP_eval_b32 --config ./configs/config_signIR_finetune.yaml \
-#     --resume out/SignIR_CLIP_finetune_b32/best_checkpoint.pth --decoder-type LD \
-#     --tsne_visualize
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
+    eval_dsl_SignIR.py --batch-size 4 \
+    --output_dir out/SignCL_eval_b16 --config ./configs/config_signIR_finetune.yaml \
+    --resume out/SignCL_finetune_b16/best_checkpoint.pth --decoder-type LD \
+    --tsne_visualize
 
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
 #     eval_dsl_SignIR.py --batch-size 4 \
@@ -72,8 +72,8 @@ cd ./GFSLT-VLP
 # Contrastive Learning Training 
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
 #     train_vlp_SignIR.py --batch-size 16 --epochs 80 --opt sgd --lr 0.0065\
-#     --output_dir out/SignIR_avgpool --config ./configs/config_signIR.yaml \
-#     --decoder-type LD --training-refurbish True --noise-rate 0.15 \ --noise-type omit_last --random-shuffle False --decoder-type LLMD
+#     --output_dir out/SignCL --config ./configs/config_signIR.yaml \
+#     --decoder-type LD
 
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
 #     train_vlp_SignIR.py --batch-size 16 --epochs 80 --opt sgd --lr 0.0065\
@@ -81,10 +81,10 @@ cd ./GFSLT-VLP
 #     --decoder-type LD --training-refurbish True --noise-rate 0.15 \ --noise-type omit_last --random-shuffle False --decoder-type LLMD
 
 # Constrastive Learning Finetuning
-CUDA_VISIBLE_DEVICES=1 torchrun --nproc_per_node=1 --master_port=1037 \
-    train_dsl_SignIR.py --batch-size 8 --epochs 100 --opt sgd --lr 0.0065\
-    --decoder-type LD --finetune out/GF_vlp_v2/best_checkpoint.pth \
-    --output_dir out/GF_vlp_v2_finetune_b16 --config ./configs/config_signIR_finetune.yaml
+# CUDA_VISIBLE_DEVICES=1 torchrun --nproc_per_node=1 --master_port=1037 \
+#     train_dsl_SignIR.py --batch-size 8 --epochs 100 --opt sgd --lr 0.0065\
+#     --decoder-type LD --finetune out/SignCL/best_checkpoint.pth \
+#     --output_dir out/SignCL_finetune_b16 --config ./configs/config_signIR_finetune.yaml
 
 # CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=1036 \
 #     train_vlp_SignIR.py --batch-size 16 --epochs 80 --opt sgd --lr 0.0065\

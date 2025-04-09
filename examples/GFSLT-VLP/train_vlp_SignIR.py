@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import MBartForConditionalGeneration, MBartTokenizer, MBartConfig
 
 # *user-defined
-from models import VideoCLIP, Text_Decoder
+from models import VideoCLIP, Text_Decoder, SignIR
 import utils as utils
 from datasets import S2T_Dataset
 
@@ -238,7 +238,8 @@ def main(args, config):
 
     print(f"Creating model:")
     # model = SLRCLIP(config=config)
-    model = VideoCLIP(config=config)
+    # model = VideoCLIP(config=config)
+    model = SignIR(config=config)
     model.to(device)
     # print(model)
     if args.finetune:

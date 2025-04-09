@@ -27,3 +27,4 @@ examples/GFSLT-VLP/out/GF_SignCL_viz_topk/frame_features_2.pickle
 
 examples/GFSLT-VLP/out/*
 examples/GFSLT-VLP/wandb/*
+examples/GFSLT-VLP/backup/*

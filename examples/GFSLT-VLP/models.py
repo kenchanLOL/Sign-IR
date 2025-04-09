@@ -503,7 +503,7 @@ class V_encoder(nn.Module):
 
 
 def config_decoder(config):
-    decoder_type = _("decoder_type", "LD", choices=["LD", "LLMD", "LD_v2"])
+    decoder_type = _("decoder_type", "LD", choices=["LD", "LLMD"])
     config["model"]["decoder_type"] = decoder_type
     if decoder_type == "LD":
         return MBartForConditionalGeneration.from_pretrained(
@@ -718,3 +718,46 @@ class VideoCLIP(nn.Module):
 
         return image_features
 
+class SignIR(nn.Module):
+    def __init__(self, config):
+        super(SignIR, self).__init__()
+        self.model_txt = TextCLIP_IR(config, inplanes=config['model']['input_dim'], planes=config['model']['hidden_size'])
+        self.model_images = ImageCLIP_IR(config, inplanes=config['model']['input_dim'], planes=config['model']['hidden_size'])
+
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+    def get_model_txt(self):
+        return self.model_txt
+
+    @property
+    def get_encoder_hidden_states(self):
+        return self.encoder_hidden_states
+
+    def forward(self, src_input, tgt_input):
+        image_features, frames_feature = self.model_images(src_input)
+        text_features, self.encoder_hidden_states = self.model_txt(tgt_input)
+
+        # normalized features
+        logits_per_image = image_features / image_features.norm(dim=-1, keepdim=True)
+        logits_per_text = text_features / text_features.norm(dim=-1, keepdim=True)
+
+        # cosine similarity as logits
+        logit_scale = self.logit_scale.exp()
+        # logits_per_image = logit_scale * image_features @ text_features.t()
+        # logits_per_text = logit_scale * text_features @ image_features.t()
+
+        ground_truth = torch.eye(
+            logits_per_image.shape[0],
+            device=logits_per_text.device,
+            dtype=logits_per_image.dtype,
+            requires_grad=False,
+        )
+
+        return logits_per_image, logits_per_text, logit_scale, ground_truth, frames_feature
+
+    def get_images_feature(self, src_input):
+        image_features = self.model_images.model(
+            src_input["input_ids"].cuda(), src_input["src_length_batch"]
+        )  # [b, n, c](src_input)
+
+        return image_features
